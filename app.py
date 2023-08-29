@@ -1,496 +1,235 @@
-from flask import *
-from flask import Flask, request, render_template
+from flask import Flask,render_template,request,session,redirect,url_for,flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import create_engine,text
-import random
-#from PIL import Image
-import base64
-import smtplib
-from io import BytesIO
-from PIL import Image
-from jinja2 import Environment
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from datetime import datetime
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash,check_password_hash
+from flask_login import login_user,logout_user,login_manager,LoginManager
+from flask_login import login_required,current_user
+import json
 
-
-
-
-
+# MY db connection
 local_server= True
-app=Flask(__name__)
-app.secret_key="cns"
+app = Flask(__name__)
+app.secret_key='kusumachandashwini'
 
-app.config['SQLALCHEMY_DATABASE_URI']='Nikhilgowda13.mysql.pythonanywhere-services.com/Nikhilgowda13$student_view'
-#engine = create_engine('mysql+pymysql://root:@localhost/studentview')
+
+# this is for getting unique user access
+login_manager=LoginManager(app)
+login_manager.login_view='login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+
+# app.config['SQLALCHEMY_DATABASE_URL']='mysql://username:password@localhost/databas_table_name'
+app.config['SQLALCHEMY_DATABASE_URI']='mysql://root:@localhost/students'
 db=SQLAlchemy(app)
 
-class Products(db.Model):
+# here we will create db models that is tables
+class Test(db.Model):
     id=db.Column(db.Integer,primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    price = db.Column(db.Integer, primary_key=True)
-    usn=db.Column(db.String(100), nullable=False)
-    studentname=db.Column(db.String(100), nullable=False)
-    email=db.Column(db.String(100), nullable=False)
+    name=db.Column(db.String(100))
+    email=db.Column(db.String(100))
 
-class Images(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id'))
-    filename = db.Column(db.String(100), nullable=False)
-    image_data=db.Column(db.LargeBinary)
-    product_name = db.Column(db.String(100), nullable=False)
-    price = db.Column(db.Integer, primary_key=True)
-    usn=db.Column(db.String(100), nullable=False)
-    student_name=db.Column(db.String(100), nullable=False)
+class Department(db.Model):
+    cid=db.Column(db.Integer,primary_key=True)
+    branch=db.Column(db.String(100))
 
-class Subimages(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id'))
-    filename = db.Column(db.String(100), nullable=False)
-    image_data=db.Column(db.LargeBinary)   
+class Attendence(db.Model):
+    aid=db.Column(db.Integer,primary_key=True)
+    rollno=db.Column(db.String(100))
+    attendance=db.Column(db.Integer())
 
-class Events(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    club = db.Column(db.String(100), primary_key=True)
-    descp =db.Column(db.String(1000), nullable=False)
+class Trig(db.Model):
+    tid=db.Column(db.Integer,primary_key=True)
+    rollno=db.Column(db.String(100))
+    action=db.Column(db.String(100))
+    timestamp=db.Column(db.String(100))
 
-class Chatroom(db.Model):
+
+class User(UserMixin,db.Model):
     id=db.Column(db.Integer,primary_key=True)
-    message = db.Column(db.String(1000), nullable=False)
-    #timestamp=db.Column(db.Timestamp(6),nullable=False)
+    username=db.Column(db.String(50))
+    email=db.Column(db.String(50),unique=True)
+    password=db.Column(db.String(1000))
 
-class Alumni(db.Model):
+
+
+
+
+class Student(db.Model):
     id=db.Column(db.Integer,primary_key=True)
-    name=db.Column(db.String(100), nullable=False)
-    image_data=db.Column(db.LargeBinary)
-    yob=db.Column(db.String(4), nullable=False)
-    link=db.Column(db.String(4), nullable=False)
-    email=db.Column(db.String(4), nullable=False)
-    position=db.Column(db.String(100), nullable=False)
-
-@app.route("/",methods=['GET', 'POST'])
-def home():
-    return render_template('home.html')
-
-
-
-@app.route("/sell",methods=['GET', 'POST'])
-def sell():
-     if request.method=='POST':
-         name=request.form.get('name')
-         price=request.form.get('price')
-         images = request.files.getlist('images[]')
-         sname=request.form.get('studentname')
-         usn=request.form.get('usn')
-         id=random.randint(0,10000000)
-         semail=request.form.get('email')
-         #create new product
-         product = Products(id=id,name=name, price=price,usn=usn,studentname=sname,email=semail)
-         #product = products(name=name, price=price,usn=usn,studentname=sname)
-         image=images[0]
-
-         db.session.add(product)
-         db.session.commit()
-         
-         filename=image.filename
-         image_data = BytesIO(image.read())
-         img=Images(product_id=id, filename=filename,image_data=image_data.getvalue(),product_name=name, price=price,usn=usn,student_name=sname)
-         print("working")
-         db.session.add(img)
-         db.session.commit()
-         
-         subimages = request.files.getlist('images[]')
-         print(Products.id)
-         # save the images to the database
-         for image in subimages[1:]:
-             filename=image.filename
-             image_data = BytesIO(image.read())
-             print(filename)
-             img=Subimages(product_id=id, filename=filename,image_data=image_data.getvalue())
-             db.session.add(img)
-             db.session.commit()
-
-     
-     return render_template('sell.html')
-
-
-
-
-
-@app.route("/buy",methods=['GET', 'POST'])
-def buy():
-    product=Products.query.all()
-    images = Images.query.all()
-    imglist=[]
+    rollno=db.Column(db.String(50))
+    sname=db.Column(db.String(50))
+    sem=db.Column(db.Integer)
+    gender=db.Column(db.String(50))
+    branch=db.Column(db.String(50))
+    email=db.Column(db.String(50))
+    number=db.Column(db.String(12))
+    address=db.Column(db.String(100))
     
 
+@app.route('/')
+def index(): 
+    return render_template('index.html')
 
-    count=0
-    for test_img in images:
-        count+=1
-        print(test_img.product_id)
-        img_data =test_img.image_data
-        img_data=base64.b64encode(img_data).decode('utf-8')
-        #print(type(img_data))
-        #print("test_img*************",test_img.id)
-        imglist.append(img_data)
-    print( "count od=f images ", count) 
-    return render_template('buy.html', img_list=imglist,products=images)
-        #return "true"
-    
-    
-    
-    # return "True"
-    # img_list = []
-    
-    
-    # for image in images:
-    #     img_data = BytesIO(image.image_data)
-    #     img = Image.open(img_data)
-        
-    #     img_base64 = base64.b64encode(img.tobytes()).decode('utf-8')
-    #     # print("****************",img_base64)
-    #     img_list.append(img_base64)
-    #     # print("*************",img_list)
+@app.route('/studentdetails')
+def studentdetails():
+    query=db.engine.execute(f"SELECT * FROM `student`") 
+    return render_template('studentdetails.html',query=query)
 
-@app.route("/buy_confirmation/<int:id>",methods=['GET', 'POST'])
-def buy_confirmation(id):
-    #query_text = "SELECT * FROM `subimages` WHERE product_id=7778588"
-    #query=text(query_text)
-    #subimage = engine.execute(query)
-    product=Products.query.filter_by(id=id).first()
-    print(id)
-    image=Images.query.filter_by(product_id=id).first()
-    if image:
-        print("image present ",image.product_id)
-    test_img=image
-    img_data =test_img.image_data
-    img_data=base64.b64encode(img_data).decode('utf-8')
-    imglist=[]
-    subimage=db.engine.execute(f"SELECT * FROM `subimages` WHERE product_id='{id}'")
-    print(type(subimage))
-    count=0
-    for test_img in subimage:
-        count+=1
-        print(test_img.product_id)
-        img_data =test_img.image_data
-        img_data=base64.b64encode(img_data).decode('utf-8')
-        #print(type(img_data))
-        #print("test_img*************",test_img.id)
-        imglist.append(img_data)
+@app.route('/triggers')
+def triggers():
+    query=db.engine.execute(f"SELECT * FROM `trig`") 
+    return render_template('triggers.html',query=query)
 
-
-
+@app.route('/department',methods=['POST','GET'])
+def department():
     if request.method=="POST":
-        name=request.form.get('studentname')
-        usn=request.form.get('name')
+        dept=request.form.get('dept')
+        query=Department.query.filter_by(branch=dept).first()
+        if query:
+            flash("Department Already Exist","warning")
+            return redirect('/department')
+        dep=Department(branch=dept)
+        db.session.add(dep)
+        db.session.commit()
+        flash("Department Addes","success")
+    return render_template('department.html')
+
+@app.route('/addattendance',methods=['POST','GET'])
+def addattendance():
+    query=db.engine.execute(f"SELECT * FROM `student`") 
+    if request.method=="POST":
+        rollno=request.form.get('rollno')
+        attend=request.form.get('attend')
+        print(attend,rollno)
+        atte=Attendence(rollno=rollno,attendance=attend)
+        db.session.add(atte)
+        db.session.commit()
+        flash("Attendance added","warning")
+
+        
+    return render_template('attendance.html',query=query)
+
+@app.route('/search',methods=['POST','GET'])
+def search():
+    if request.method=="POST":
+        rollno=request.form.get('roll')
+        bio=Student.query.filter_by(rollno=rollno).first()
+        attend=Attendence.query.filter_by(rollno=rollno).first()
+        return render_template('search.html',bio=bio,attend=attend)
+        
+    return render_template('search.html')
+
+@app.route("/delete/<string:id>",methods=['POST','GET'])
+@login_required
+def delete(id):
+    db.engine.execute(f"DELETE FROM `student` WHERE `student`.`id`={id}")
+    flash("Slot Deleted Successful","danger")
+    return redirect('/studentdetails')
+
+
+@app.route("/edit/<string:id>",methods=['POST','GET'])
+@login_required
+def edit(id):
+    dept=db.engine.execute("SELECT * FROM `department`")
+    posts=Student.query.filter_by(id=id).first()
+    if request.method=="POST":
+        rollno=request.form.get('rollno')
+        sname=request.form.get('sname')
         sem=request.form.get('sem')
+        gender=request.form.get('gender')
         branch=request.form.get('branch')
-        
-        print(name,branch,sem)
-        # Define the email addresses and message
-        sender_email = "Gecarcade@gmail.com"
-        receiver_email = 'nikhilgowda13121@gmail.com'
-        password = 'sikohjpzwslajsul'
-
-        message = MIMEMultipart()
-        message["Subject"] = "Example subject line"
-        message["From"] = sender_email
-        message["To"] = receiver_email
-
-        print(product.name)
-        text = 'ur product '+product.name+' have a buy request from '+name+' of '+sem+'th sem of '+branch+' branch'
-        html = """\
-        <html>
-        <body>
-            <p>This is an example email message.</p>
-            <img src="cid:image1">
-        </body>
-        </html>
-        """
-        part1 = MIMEText(text, "plain")
-        part2 = MIMEText(html, "html")
-        message.attach(part1)
-        message.attach(part2)
-
-        # Send the email
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, password)
-            server.sendmail(sender_email, receiver_email, message.as_string())
-
-
-        return render_template('orderplaced.html')
-
-    return render_template("buy_confirmation.html",product=product,image=img_data,img_list=imglist)
-
-
-
-
-
-
-
-
-        
-        
-        #receiver_mailid=product.email
-        #server=smtplib.SMTP('smtp@gmail.com',587)
-        #server.startls()
-        #server.login('Gecarcade@gmail.com','gech_016')
-        #server.sendmail('Gecarcade@gmail.com',product.email,'ur product'+product.name+'have a buy request from'+name+'of '+sem+'th sem of'+branch+'branch')
-        #print('mailsent')
-
-
-
-       
-    
-
-#password='sikohjpzwslajsul'
-
-
-
-
-
-@app.route("/sgpa",methods=['GET', 'POST'])
-def sgpa():
-    def grade(marks):
-        if marks>=90 and marks<=100:
-            return(10)
-        elif marks>=80 and marks<90:
-            return(9)
-        elif marks>=70 and marks<80:
-            return(8)
-        elif marks>=60 and marks<70:
-            return(7)
-        elif marks>=50 and marks<60:
-            return(6)
-        elif marks>=45 and marks<50:
-            return(5)
-        elif marks>=40 and marks<45:
-            return(4)
-        else:
-            return (0)
-    if request.method=='POST':
-        sub1=float(request.form.get('sub1'))
-        sub1=grade(sub1)*4
-        sub2=float(request.form.get('sub2'))
-        sub2=grade(sub2)*4
-        sub3=float(request.form.get('sub3'))
-        sub3=grade(sub3)*4
-        sub4=float(request.form.get('sub4'))
-        sub4=grade(sub4)*3
-        sub5=float(request.form.get('sub5'))
-        sub5=grade(sub5)*3
-        sub6=float(request.form.get('sub6'))
-        sub6=grade(sub6)*3
-        sub7=float(request.form.get('sub7'))
-        sub7=grade(sub7)*2
-        sub8=float(request.form.get('sub8'))
-        sub8=grade(sub8)*2
-        
-        total=(sub1+sub2+sub3+sub4+sub5+sub6+sub7+sub8)
-        sgpa =total/25
-        percentage=(sgpa-0.75)*10
-        return render_template('sgparesult.html',sgpa=sgpa,percentage=percentage)
-
-    return render_template('sgpa.html',sgpa=0)
-
-
-@app.route("/cgpa",methods=['GET', 'POST'])
-def cgpa():
-    if request.method=='POST':
-        count=0
-        sem1=float(request.form.get('sem1'))
-        if sem1>0:
-            count+=1
-        sem2=float(request.form.get('sem2'))
-        if sem2>0:
-            count+=1
-        sem3=float(request.form.get('sem3'))
-        if sem3>0:
-            count+=1
-        sem4=float(request.form.get('sem4'))
-        if sem4>0:
-            count+=1
-        sem5=float(request.form.get('sem5'))
-        if sem5>0:
-            count+=1
-        sem6=float(request.form.get('sem6'))
-        if sem6>0:
-            count+=1
-        sem7=float(request.form.get('sem7'))
-        if sem7>0:
-            count+=1
-        sem8=float(request.form.get('sem8'))
-        if sem8>0:
-            count+=1
-        cgpa=(sem1*25+sem2*25+sem3*25+sem4*25+sem5*25+sem6*25+sem7*25+sem8*25)/(25*count)
-        percentage=(cgpa-0.75)*10
-        print(cgpa)
-        return render_template('result.html',cgpa=cgpa,percentage=percentage)
-
-
-
-
-    return render_template('cgpa.html')
-
-@app.route("/events",methods=['GET', 'POST'])
-def events():
-    event = Events.query.all()
-    #print(event[1].name)
-    return render_template('events.html',event=event)
-
-@app.route("/admin_verification",methods=['GET', 'POST'])
-def admin_verification():
-    if request.method=="POST":
-        admin=['anjali@admin','nikhil@admin','temp_admin']
-        pswd=['abc3']
-        temp_pswd=['js123']
-        name=request.form.get('name')
-        password=request.form.get('Password')
-        print(name,password)
-        if name in admin:
-            if name=='temp_admin' and password in temp_pswd:
-                return render_template('addevents.html')
-            elif (name=='anjali@admin' or name=='nikhil@admin') and ( password in pswd):
-                return render_template('addevents.html')
-            else:
-                return render_template('loginfailed.html')
-        else:
-            return render_template('loginfailed.html')
-
-
-    
-
-    return render_template('admin_verification.html')
-
-
-
-@app.route("/club",methods=['GET', 'POST'])
-def club():
-    return render_template('club.html')
-
-@app.route("/developers",methods=['GET', 'POST'])
-def developers():
-    return render_template('developers.html')
-
-
-@app.route("/addevents",methods=['GET', 'POST'])
-def addevents():
-    if request.method=='POST':
-        
-        name=request.form.get('name')
-        club=request.form.get('club')
-        descp=request.form.get('desc')
-        event = Events(name=name, club=club,descp=descp)
-         
-        db.session.add(event)
-        db.session.commit()
-
-
-    return render_template('addevents.html')
-
-
-
-    
-    
-    
-    
-    
-    
-    
-@app.route("/chatroom",methods=['GET', 'POST'])
-def chatroom():
-    if request.method=='POST':
-        message=request.form.get('message')
-        timestamp = datetime.now()
-        #print(type(timestamp))
-        #print(timestamp)
-        chat = Chatroom(message=message)
-         #product = products(name=name, price=price,usn=usn,studentname=sname)
-         
-
-        db.session.add(chat)
-        db.session.commit()
-    messages=db.engine.execute(f"SELECT * FROM `chatroom` ORDER BY id ")
-    count=0
-    for i in messages:
-        count+=1
-    #print("message count",count)
-    return render_template('chatroom.html',messages=messages)
-
-@app.route("/alumni",methods=['GET', 'POST'])
-def alumni():
-    alumnis = Alumni.query.all()
-    imglist=[]
-    
-
-
-    count=0
-    for alumni in alumnis:
-        count+=1
-        #print(test_img.product_id)
-        img_data =alumni.image_data
-        img_data=base64.b64encode(img_data).decode('utf-8')
-        #print(type(img_data))
-        #print("test_img*************",test_img.id)
-        imglist.append(img_data)
-    # 
-    
-    return render_template('alumni.html', img_list=imglist,alumnis=alumnis)
-
-
-@app.route("/admin_verification1",methods=['GET', 'POST'])
-def admin_verification1():
-    if request.method=="POST":
-        admin=['anjali@admin','nikhil@admin','temp_admin']
-        pswd=['abc3']
-        temp_pswd=['js123']
-        name=request.form.get('name')
-        password=request.form.get('password')
-        
-        if name in admin:
-            if name=='temp_admin' and password in temp_pswd:
-                return render_template('addalumni.html')
-            elif (name=='anjali@admin' or name=='nikhil@admin') and ( password in pswd):
-                return render_template('addalumni.html')
-            else:
-                return render_template('loginfailed.html')
-        else:
-            return render_template('loginfailed.html')
-
-
-    
-
-    return render_template('admin_verification1.html')
-
-
-@app.route("/addalumni",methods=['GET', 'POST'])
-def addalumni():
-    if request.method=='POST':
-        
-        name=request.form.get('name')
-        yob=request.form.get('yob')
-        position=request.form.get('position')
-        images = request.files.getlist('images[]')
         email=request.form.get('email')
-        link=request.form.get('link')
-        
-        image=images[0]
-
-        
-         
-        filename=image.filename
-        image_data = BytesIO(image.read())
-        alumni=Alumni(name=name,yob=yob,position=position,image_data=image_data.getvalue(),link=link,email=email)
-         
-        db.session.add(alumni)
-        db.session.commit()
+        num=request.form.get('num')
+        address=request.form.get('address')
+        query=db.engine.execute(f"UPDATE `student` SET `rollno`='{rollno}',`sname`='{sname}',`sem`='{sem}',`gender`='{gender}',`branch`='{branch}',`email`='{email}',`number`='{num}',`address`='{address}'")
+        flash("Slot is Updates","success")
+        return redirect('/studentdetails')
+    
+    return render_template('edit.html',posts=posts,dept=dept)
 
 
-    return render_template('addalumni.html')
+@app.route('/signup',methods=['POST','GET'])
+def signup():
+    if request.method == "POST":
+        username=request.form.get('username')
+        email=request.form.get('email')
+        password=request.form.get('password')
+        user=User.query.filter_by(email=email).first()
+        if user:
+            flash("Email Already Exist","warning")
+            return render_template('/signup.html')
+        encpassword=generate_password_hash(password)
 
-if __name__=='__main__':
-    app.config['UPLOAD_FOLDER'] = 'static/uploads/'
-    app.run(debug=True)
+        new_user=db.engine.execute(f"INSERT INTO `user` (`username`,`email`,`password`) VALUES ('{username}','{email}','{encpassword}')")
+
+        # this is method 2 to save data in db
+        # newuser=User(username=username,email=email,password=encpassword)
+        # db.session.add(newuser)
+        # db.session.commit()
+        flash("Signup Succes Please Login","success")
+        return render_template('login.html')
+
+          
+
+    return render_template('signup.html')
+
+@app.route('/login',methods=['POST','GET'])
+def login():
+    if request.method == "POST":
+        email=request.form.get('email')
+        password=request.form.get('password')
+        user=User.query.filter_by(email=email).first()
+
+        if user and check_password_hash(user.password,password):
+            login_user(user)
+            flash("Login Success","primary")
+            return redirect(url_for('index'))
+        else:
+            flash("invalid credentials","danger")
+            return render_template('login.html')    
+
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash("Logout SuccessFul","warning")
+    return redirect(url_for('login'))
+
+
+
+@app.route('/addstudent',methods=['POST','GET'])
+@login_required
+def addstudent():
+    dept=db.engine.execute("SELECT * FROM `department`")
+    if request.method=="POST":
+        rollno=request.form.get('rollno')
+        sname=request.form.get('sname')
+        sem=request.form.get('sem')
+        gender=request.form.get('gender')
+        branch=request.form.get('branch')
+        email=request.form.get('email')
+        num=request.form.get('num')
+        address=request.form.get('address')
+        query=db.engine.execute(f"INSERT INTO `student` (`rollno`,`sname`,`sem`,`gender`,`branch`,`email`,`number`,`address`) VALUES ('{rollno}','{sname}','{sem}','{gender}','{branch}','{email}','{num}','{address}')")
+    
+
+        flash("Booking Confirmed","info")
+
+
+    return render_template('student.html',dept=dept)
+@app.route('/test')
+def test():
+    try:
+        Test.query.all()
+        return 'My database is Connected'
+    except:
+        return 'My db is not Connected'
+
+
+app.run(debug=True)    
